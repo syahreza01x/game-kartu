@@ -1,4 +1,10 @@
 export type Party = 'liberal' | 'fascist'
+export type Policy = { id: number; party: Party }
+export const policyTitles = [
+  'Hak Berserikat', 'Pers Merdeka', 'Pendidikan Terbuka', 'Suara Warga', 'Sidang Terbuka', 'Perlindungan Sipil',
+  'Sensor Pers', 'Jam Malam', 'Daftar Warga', 'Pengawasan Kota', 'Larangan Berkumpul', 'Kantor Propaganda',
+  'Surat Wajib', 'Kuasa Darurat', 'Pengadilan Khusus', 'Sumpah Setia', 'Kekuasaan Tunggal'
+] as const
 export type Role = Party | 'leader'
 export type Difficulty = 'easy' | 'medium' | 'hard'
 export type Phase = 'nomination' | 'vote' | 'presidentDiscard' | 'chancellorChoose' | 'vetoResponse' | 'peek' | 'execute' | 'finished'
@@ -6,10 +12,10 @@ export type Player = { name: string; role: Role; alive: boolean }
 export type Log = { text: string; kind?: 'important' | 'danger' }
 export type Game = {
   players: Player[]; phase: Phase; president: number; candidate: number | null
-  votes: (boolean | null)[]; deck: Party[]; discard: Party[]; hand: Party[]
+  votes: (boolean | null)[]; deck: Policy[]; discard: Policy[]; hand: Policy[]
   liberal: number; fascist: number; failed: number; presidentLast: number | null; chancellorLast: number | null
   winner: Party | null; reason: string; logs: Log[]; difficulty: Difficulty; round: number
-  peeked: Party[]; vetoProposed: boolean; announcement: string
+  peeked: Policy[]; vetoProposed: boolean; announcement: string
 }
 
 const shuffle = <T,>(items: T[]): T[] => {
@@ -35,7 +41,7 @@ export function newGame(difficulty: Difficulty): Game {
   const g: Game = {
     players: roles.map((role, i) => ({ name: names[i], role, alive: true })),
     phase: 'nomination', president: Math.floor(Math.random() * 5), candidate: null,
-    votes: Array(5).fill(null), deck: shuffle<Party>([...Array<Party>(6).fill('liberal'), ...Array<Party>(11).fill('fascist')]),
+    votes: Array(5).fill(null), deck: shuffle<Policy>(policyTitles.map((_, id) => ({ id, party: id < 6 ? 'liberal' : 'fascist' }))),
     discard: [], hand: [], liberal: 0, fascist: 0, failed: 0, presidentLast: null, chancellorLast: null,
     winner: null, reason: '', logs: [], difficulty, round: 1, peeked: [], vetoProposed: false, announcement: ''
   }
@@ -57,18 +63,18 @@ function advance(g: Game) {
   g.round++; g.phase = 'nomination'
   note(g, `Sidang ${g.round}. ${label(g, g.president)} memegang palu.`)
 }
-function enact(g: Game, policy: Party, chaos = false) {
-  if (policy === 'liberal') g.liberal++
+function enact(g: Game, policy: Policy, chaos = false) {
+  if (policy.party === 'liberal') g.liberal++
   else g.fascist++
-  note(g, `Kebijakan ${policy === 'liberal' ? 'Reformasi' : 'Kendali'} disahkan${chaos ? ' oleh pemungutan otomatis' : ''}.`, policy === 'fascist' ? 'danger' : 'important')
+  note(g, `Kebijakan ${policyTitles[policy.id]} (${policy.party === 'liberal' ? 'Reformasi' : 'Kendali'}) disahkan${chaos ? ' oleh pemungutan otomatis' : ''}.`, policy.party === 'fascist' ? 'danger' : 'important')
   if (g.liberal >= 5) { finish(g, 'liberal', 'Lima reformasi disahkan. Reformis menang.'); return }
   if (g.fascist >= 6) { finish(g, 'fascist', 'Enam kebijakan kendali disahkan. Otoritarian menang.'); return }
-  if (!chaos && policy === 'fascist' && g.fascist === 3) {
+  if (!chaos && policy.party === 'fascist' && g.fascist === 3) {
     prepareDeck(g); g.peeked = g.deck.slice(0, 3); g.phase = 'peek'
     note(g, `${label(g, g.president)} berhak mengintip tiga kebijakan berikutnya.`)
     return
   }
-  if (!chaos && policy === 'fascist' && (g.fascist === 4 || g.fascist === 5)) { g.phase = 'execute'; return }
+  if (!chaos && policy.party === 'fascist' && (g.fascist === 4 || g.fascist === 5)) { g.phase = 'execute'; return }
   advance(g)
 }
 function failedElection(g: Game) {
@@ -178,13 +184,13 @@ export function botAction(g: Game): Action | null {
   }
   if (g.phase === 'presidentDiscard') {
     const preferred: Party = isTeam(g, actor) ? 'liberal' : 'fascist'
-    const idx = g.hand.indexOf(preferred)
+    const idx = g.hand.findIndex(p => p.party === preferred)
     return { type: 'discard', index: idx >= 0 && Math.random() < skill(g) ? idx : Math.floor(Math.random() * 3) }
   }
   if (g.phase === 'chancellorChoose') {
-    if (g.fascist >= 5 && !g.vetoProposed && g.hand.every(p => p !== (isTeam(g, actor) ? 'fascist' : 'liberal')) && Math.random() < skill(g)) return { type: 'proposeVeto' }
+    if (g.fascist >= 5 && !g.vetoProposed && g.hand.every(p => p.party !== (isTeam(g, actor) ? 'fascist' : 'liberal')) && Math.random() < skill(g)) return { type: 'proposeVeto' }
     const preferred: Party = isTeam(g, actor) ? 'fascist' : 'liberal'
-    const idx = g.hand.indexOf(preferred)
+    const idx = g.hand.findIndex(p => p.party === preferred)
     return { type: 'enact', index: idx >= 0 && Math.random() < skill(g) ? idx : Math.floor(Math.random() * 2) }
   }
   if (g.phase === 'vetoResponse') return { type: 'answerVeto', agree: Math.random() < (isTeam(g, actor) ? .45 : .65) }

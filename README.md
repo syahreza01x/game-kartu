@@ -11,7 +11,8 @@ Mode **Lawan Bot** sudah dapat dimainkan. Mode **Mabar LAN** baru tersedia sebag
 - Peran acak: tiga Reformis, satu Otoritarian, satu Pemimpin Otoritarian.
 - Bot dengan tingkat kesulitan Santai, Waspada, dan Tajam.
 - Pencalonan wakil, pemungutan suara, pemilihan kebijakan, kegagalan pemerintahan, kekuasaan ketua sidang, veto, dan kondisi menang.
-- Antarmuka responsif berbahasa Indonesia dengan visual arsip dan kartu dokumen orisinal.
+- Antarmuka responsif berbahasa Indonesia dengan visual arsip dan 17 kartu dokumen bernama serta berornamen berbeda. Nama dan ilustrasi tidak mengubah efek kebijakan.
+- Musik latar instrumental orisinal yang dihasilkan secara sintetis di browser, tanpa berkas audio pihak ketiga. Musik mati secara default; nyalakan lewat tombol di layar sidang.
 - Pengujian aturan dan simulasi permainan bot.
 
 ## Menjalankan

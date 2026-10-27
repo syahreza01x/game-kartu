@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { applyAction, botAction, eligible, newGame, policyName, publicRole } from './game'
-import type { Action, Difficulty, Game, Party } from './game'
+import { applyAction, botAction, eligible, newGame, policyName, policyTitles, publicRole } from './game'
+import type { Action, Difficulty, Game, Policy } from './game'
+import { useMusic } from './music'
 import './style.css'
 
 type Screen = 'menu' | 'setup' | 'rules' | 'game' | 'multiplayer'
@@ -9,13 +10,15 @@ const title = 'RUANG SIDANG'
 function Crest({ small = false }: { small?: boolean }) {
   return <div className={`crest ${small ? 'crest-small' : ''}`} aria-hidden="true"><span>✦</span><div className="crest-arch"><span>R</span><span>S</span></div><span>✦</span></div>
 }
-function PolicyCard({ policy, onClick, selected = false }: { policy: Party; onClick?: () => void; selected?: boolean }) {
-  return <button type="button" onClick={onClick} className={`policy-card ${policy} ${selected ? 'selected' : ''}`} disabled={!onClick}>
-    <span className="card-serial">ARSIP • 0{policy === 'liberal' ? '1' : '2'}</span>
-    <span className="card-emblem">{policy === 'liberal' ? '✳' : '✦'}</span>
+function PolicyCard({ policy, onClick }: { policy: Policy; onClick?: () => void }) {
+  const symbols = policy.party === 'liberal' ? ['✳', '❧', '✺', '❖', '☼', '✿'] : ['✦', '⌘', '◆', '✕', '◈', '▣', '♜', '⚑', '⊞', '♠', '⬟']
+  const symbol = symbols[policy.party === 'liberal' ? policy.id : policy.id - 6]
+  return <button type="button" onClick={onClick} className={`policy-card ${policy.party} card-variant-${policy.id % 4}`} disabled={!onClick} aria-label={`${policyName(policy.party)}: ${policyTitles[policy.id]}`}>
+    <span className="card-serial">ARSIP • {String(policy.id + 1).padStart(2, '0')}</span>
+    <span className="card-emblem" aria-hidden="true"><i>{symbol}</i></span>
     <span className="card-divider" />
-    <strong>{policyName(policy)}</strong>
-    <small>{policy === 'liberal' ? 'Kebebasan untuk semua' : 'Ketertiban di atas segalanya'}</small>
+    <strong>{policyTitles[policy.id]}</strong>
+    <small>{policyName(policy.party)}</small>
     <span className="card-foot">DEWAN RAKYAT · TAHUN 01</span>
   </button>
 }
@@ -32,6 +35,7 @@ function App() {
   const [identitySeen, setIdentitySeen] = useState(false)
   const [lastVote, setLastVote] = useState<boolean | null>(null)
   const [decision, setDecision] = useState<{ round: number; text: string } | null>(null)
+  const { musicOn, toggleMusic, stopMusic } = useMusic()
   const act = (action: Action) => { setPending(null); setGame(g => g ? applyAction(g, action) : null) }
   useEffect(() => {
     if (!game || !identitySeen || screen !== 'game' || game.phase === 'finished') return
@@ -41,12 +45,12 @@ function App() {
     return () => window.clearTimeout(timer)
   }, [game, screen, identitySeen])
   const start = () => { setGame(newGame(difficulty)); setReveal(false); setIdentitySeen(false); setLastVote(null); setDecision(null); setPending(null); setScreen('game') }
-  const goMenu = () => { setScreen('menu'); setGame(null); setReveal(false); setIdentitySeen(false); setLastVote(null); setDecision(null); setPending(null) }
+  const goMenu = () => { stopMusic(); setScreen('menu'); setGame(null); setReveal(false); setIdentitySeen(false); setLastVote(null); setDecision(null); setPending(null) }
   const playerRole = game?.players[0].role
   const castVote = (yes: boolean) => { setLastVote(yes); act({type:'vote', player:0, yes}) }
   const choosePolicy = (index: number) => { setDecision({round:game!.round,text:game?.phase === 'presidentDiscard' ? 'Satu berkas telah dibuang. Isi buangan hanya diketahui olehmu.' : 'Satu berkas telah kamu pilih untuk disahkan.'}); act(game!.phase === 'presidentDiscard' ? {type:'discard',index} : {type:'enact',index}) }
   const teammate = game?.players.findIndex((p, i) => i !== 0 && p.role === 'fascist') ?? -1
-  const chooseTarget = (type: 'nominate' | 'execute', target: number) => { if (type === 'nominate') act({ type, target }); else setPending(target) }
+  const chooseTarget = (target: number) => setPending(target)
   const myTurn = !!game && identitySeen && (game.phase === 'nomination' && game.president === 0 || game.phase === 'presidentDiscard' && game.president === 0 || game.phase === 'chancellorChoose' && game.candidate === 0 || game.phase === 'vetoResponse' && game.president === 0 || (game.phase === 'peek' || game.phase === 'execute') && game.president === 0 || game.phase === 'vote' && game.votes[0] === null)
   return <div className="site-shell">
     {screen === 'menu' && <><Header section="HALAMAN DEPAN"/><main className="landing">
@@ -67,13 +71,13 @@ function App() {
       ['04','Akhiri permainan','Reformis menang dengan lima reformasi atau mengeluarkan pemimpin otoritarian. Otoritarian menang dengan enam kendali atau jika pemimpin mereka terpilih sebagai wakil setelah tiga kendali berlaku.']
     ].map(([n,h,p]) => <article className="rule" key={n}><span>{n} /</span><h3>{h}</h3><p>{p}</p></article>)}</div><button className="primary-button" onClick={() => setScreen('setup')}>SIAP BERMAIN <span>↗</span></button></main></>}
     {screen === 'game' && game && <><Header back={() => setShowRules(true)} section={`SIDANG ${String(game.round).padStart(2, '0')} / MODE BOT`}/><main className="game-page">
-      <div className="game-heading"><div><div className="page-kicker">CATATAN SIDANG / {String(game.round).padStart(2, '0')}</div><h1>Ruang <em>sidang.</em></h1></div><div className="game-heading-actions"><span className="difficulty-badge">BOT: {game.difficulty.toUpperCase()}</span><button className="outline-small" onClick={() => setShowRules(true)}>ATURAN & MENU ↗</button></div></div>
+      <div className="game-heading"><div><div className="page-kicker">CATATAN SIDANG / {String(game.round).padStart(2, '0')}</div><h1>Ruang <em>sidang.</em></h1></div><div className="game-heading-actions"><button className="outline-small music-toggle" onClick={toggleMusic} aria-pressed={musicOn}>{musicOn ? '♫ MUSIK: NYALA' : '♫ MUSIK: MATI'}</button><span className="difficulty-badge">BOT: {game.difficulty.toUpperCase()}</span><button className="outline-small" onClick={() => setShowRules(true)}>ATURAN & MENU ↗</button></div></div>
       <div className="game-layout"><div className="table-area"><div className="scoreboard"><div className="score-title">ARSIP KEBIJAKAN <span>NO. 001—017</span></div><div className="track-wrap"><span className="track-name">REFORMASI <b>{game.liberal} / 5</b></span><div className="track reform">{Array.from({length:5}, (_,i) => <span key={i} className={i < game.liberal ? 'filled' : ''}>{i < game.liberal ? '✳' : '·'}</span>)}</div></div><div className="track-wrap"><span className="track-name">KENDALI <b>{game.fascist} / 6</b></span><div className="track control">{Array.from({length:6}, (_,i) => <span key={i} className={i < game.fascist ? 'filled' : ''}>{i === 2 ? '⌕' : i === 3 || i === 4 ? '✕' : '·'}</span>)}</div></div><div className="track-footer"><span>GAGAL MEMBENTUK PEMERINTAHAN</span><span className="failure-dots">{[0,1,2].map(i => <i key={i} className={i < game.failed ? 'on' : ''}/>)}</span><span>DEK {game.deck.length} &nbsp;•&nbsp; BUANG {game.discard.length}</span></div></div>
-      <div className="table-board"><div className="table-top"><span>DEWAN / LIMA KURSI</span><Crest small/><span>SIDANG {String(game.round).padStart(2,'0')}</span></div><div className="seats">{game.players.map((p,i) => <button key={i} className={`seat ${i === 0 ? 'seat-me' : ''} ${!p.alive ? 'seat-dead' : ''} ${pending === i ? 'seat-selected' : ''}`} disabled={!p.alive || !(myTurn && (game.phase === 'nomination' && eligible(game).includes(i) || game.phase === 'execute' && i !== game.president))} onClick={() => chooseTarget(game.phase as 'nominate'|'execute', i)}><span className="seat-avatar">{p.name[0]}</span><span className="seat-info"><strong>{p.name}{i === 0 ? ' (KAMU)' : ''}</strong><small>{!p.alive ? 'KELUAR' : i === game.president ? 'KETUA SIDANG' : i === game.candidate ? 'CALON WAKIL' : 'ANGGOTA DEWAN'}</small></span>{game.votes[i] !== null && game.phase === 'vote' && p.alive && <span className="voted-indicator">SUDAH MEMILIH</span>}</button>)}</div><div className="table-center"><span>✳</span><small>KEPERCAYAAN ADALAH MATA UANG PALING RAPUH</small></div></div>
+      <div className="table-board"><div className="table-top"><span>DEWAN / LIMA KURSI</span><Crest small/><span>SIDANG {String(game.round).padStart(2,'0')}</span></div><div className="seats">{game.players.map((p,i) => <button key={i} className={`seat ${i === 0 ? 'seat-me' : ''} ${!p.alive ? 'seat-dead' : ''} ${pending === i ? 'seat-selected' : ''}`} disabled={!p.alive || !(myTurn && (game.phase === 'nomination' && eligible(game).includes(i) || game.phase === 'execute' && i !== game.president))} onClick={() => chooseTarget(i)}><span className="seat-avatar">{p.name[0]}</span><span className="seat-info"><strong>{p.name}{i === 0 ? ' (KAMU)' : ''}</strong><small>{!p.alive ? 'KELUAR' : i === game.president ? 'KETUA SIDANG' : i === game.candidate ? 'CALON WAKIL' : 'ANGGOTA DEWAN'}</small></span>{game.votes[i] !== null && game.phase === 'vote' && p.alive && <span className="voted-indicator">SUDAH MEMILIH</span>}</button>)}</div><div className="table-center"><span>✳</span><small>KEPERCAYAAN ADALAH MATA UANG PALING RAPUH</small></div></div>
       </div><aside className="sidebar"><div className="identity-panel"><div className="panel-label">BERKAS PRIBADI <span>01 / 05</span></div><h3>Siapa kamu?</h3>{reveal ? <><div className={`identity-reveal ${playerRole === 'liberal' ? 'is-liberal' : ''}`}><span>IDENTITAS RAHASIA</span><strong>{publicRole(playerRole!)}</strong><small>{playerRole === 'liberal' ? 'Temukan kebohongan mereka.' : `Sekutu: ${game.players[playerRole === 'fascist' ? game.players.findIndex(p => p.role === 'leader') : teammate].name}`}</small></div><button className="hide-button" onClick={() => {setReveal(false);setIdentitySeen(true)}}>TUTUP BERKAS & LANJUTKAN ↑</button></> : <button className="reveal-button" onClick={() => setReveal(true)}><span>✳</span> LIHAT IDENTITAS RAHASIA ↗</button>}<p className="identity-warning">Pastikan tidak ada orang lain melihat layar saat membuka berkas.</p></div>
       <div className="action-panel"><div className="panel-label">GILIRAN SEKARANG <span>✦</span></div><h3>{game.phase === 'finished' ? 'Sidang berakhir.' : game.phase === 'nomination' ? 'Pilih wakil.' : game.phase === 'vote' ? 'Pemungutan suara.' : game.phase === 'presidentDiscard' ? 'Tiga berkas.' : game.phase === 'chancellorChoose' ? 'Sahkan kebijakan.' : game.phase === 'vetoResponse' ? 'Permintaan veto.' : game.phase === 'peek' ? 'Intip arsip.' : 'Keluarkan pemain.'}</h3><p className="action-description">{game.announcement}</p>{decision && decision.round === game.round && game.phase !== 'finished' && <p className="decision-note" role="status">{decision.text}</p>}
       {!identitySeen ? <div className="turn-controls"><p className="instruction">Buka berkas pribadi untuk mengetahui peranmu. Tutup berkas untuk memulai sidang.</p><button className="secondary-button" onClick={() => setReveal(true)}>BUKA BERKAS RAHASIA</button></div> : game.phase === 'finished' ? <div className="turn-controls"><span className="result-label">{game.winner === 'liberal' ? 'REFORMIS MENANG' : 'OTORITARIAN MENANG'}</span><p>{game.reason}</p><button className="primary-button" onClick={start}>MAIN LAGI ↗</button><button className="secondary-button" onClick={goMenu}>KEMBALI KE MENU</button><div className="role-summary">{game.players.map(p => <div key={p.name}><span>{p.name}</span><strong>{publicRole(p.role)}</strong></div>)}</div></div> : !myTurn ? <div className="waiting"><span className="waiting-icon">⌛</span><strong>BOT SEDANG BERTINDAK</strong><small>Menunggu keputusan anggota dewan...</small></div> : <div className="turn-controls">
-        {game.phase === 'nomination' && <p className="instruction">Pilih nama di meja untuk mencalonkan wakil.</p>}
+        {game.phase === 'nomination' && <><p className="instruction">Pilih nama di meja, lalu konfirmasi pencalonan.</p>{pending !== null && eligible(game).includes(pending) && <button className="primary-button" onClick={() => act({type:'nominate',target:pending})}>CALONKAN {game.players[pending].name.toUpperCase()} ↗</button>}</>}
         {game.phase === 'vote' && game.votes[0] !== null && <p className="instruction">Suaramu: <strong>{lastVote ? 'SETUJU' : 'TOLAK'}</strong>. Menunggu anggota lain.</p>}
         {game.phase === 'vote' && <><p className="instruction">Setujui calon wakil {game.players[game.candidate!].name}?</p><div className="vote-buttons"><button onClick={() => castVote(true)}>SETUJU <b>✓</b></button><button onClick={() => castVote(false)}>TOLAK <b>✕</b></button></div></>}
         {(game.phase === 'presidentDiscard' || game.phase === 'chancellorChoose') && <><p className="instruction">{game.phase === 'presidentDiscard' ? 'Pilih satu berkas untuk dibuang. Wakil tidak melihat buanganmu.' : 'Pilih satu berkas untuk disahkan. Satu lainnya dibuang.'}</p><div className="hand">{game.hand.map((card,i) => <PolicyCard key={i} policy={card} onClick={() => choosePolicy(i)}/>)}</div>{game.phase === 'chancellorChoose' && game.fascist >= 5 && !game.vetoProposed && <button className="secondary-button" onClick={() => act({type:'proposeVeto'})}>AJUKAN VETO</button>}</>}

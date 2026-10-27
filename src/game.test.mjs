@@ -21,13 +21,14 @@ function elect(game, nominee = 1) {
 test('peran dan dek awal tepat untuk lima pemain', () => {
   const game = newGame('medium')
   assert.deepEqual(game.players.map(p => p.role).sort(), ['fascist','leader','liberal','liberal','liberal'])
-  assert.equal(game.deck.filter(p => p === 'liberal').length, 6)
-  assert.equal(game.deck.filter(p => p === 'fascist').length, 11)
+  assert.equal(game.deck.filter(p => p.party === 'liberal').length, 6)
+  assert.equal(game.deck.filter(p => p.party === 'fascist').length, 11)
+  assert.equal(new Set(game.deck.map(p => p.id)).size, 17)
 })
 
 test('tiga pemerintahan gagal mengesahkan kartu tanpa kekuasaan', () => {
   let game = controlledGame()
-  game.deck = ['fascist', ...game.deck]
+  game.deck = [{ id: 6, party: 'fascist' }, ...game.deck]
   game.fascist = 2
   for (let round = 0; round < 3; round++) {
     game = applyAction(game, { type: 'nominate', target: eligible(game)[0] })
@@ -42,10 +43,14 @@ test('tiga pemerintahan gagal mengesahkan kartu tanpa kekuasaan', () => {
 test('ketua membuang satu dan wakil memilih satu; kekuasaan intip tidak mengubah dek', () => {
   let game = controlledGame()
   game.fascist = 2
-  game.deck = ['fascist','liberal','fascist','liberal','fascist','liberal',...game.deck]
+  game.deck = [
+    { id: 6, party: 'fascist' }, { id: 0, party: 'liberal' },
+    { id: 7, party: 'fascist' }, { id: 1, party: 'liberal' },
+    { id: 8, party: 'fascist' }, { id: 2, party: 'liberal' }, ...game.deck
+  ]
   game = elect(game)
   assert.equal(game.phase, 'presidentDiscard')
-  assert.deepEqual(game.hand, ['fascist','liberal','fascist'])
+  assert.deepEqual(game.hand.map(p => p.party), ['fascist','liberal','fascist'])
   game = applyAction(game, { type: 'discard', index: 1 })
   game = applyAction(game, { type: 'enact', index: 0 })
   assert.equal(game.phase, 'peek')
@@ -77,7 +82,7 @@ test('keluarkan pemimpin memenangkan kubu reformis', () => {
 test('veto disetujui dihitung kegagalan pemerintahan', () => {
   let game = controlledGame()
   game.fascist = 5
-  game.deck = ['fascist','fascist','fascist',...game.deck]
+  game.deck = [{ id: 6, party: 'fascist' }, { id: 7, party: 'fascist' }, { id: 8, party: 'fascist' }, ...game.deck]
   game = elect(game)
   game = applyAction(game, { type: 'discard', index: 0 })
   game = applyAction(game, { type: 'proposeVeto' })
